@@ -1,0 +1,181 @@
+[23bcs114@mepcolinux EX-5]$cat hellopt.c
+#include<stdio.h>
+#include<stdlib.h>
+#include<pthread.h>
+
+int thread_count;
+void *Hello(void* rank);
+
+int main(int argc,char* argv[]){
+   long thread;
+   pthread_t* thread_handles;
+   thread_count = strtol(argv[1],NULL,10);
+   thread_handles = (pthread_t*)malloc(thread_count*sizeof(pthread_t));
+   for(thread=0;thread<thread_count;thread++)
+      pthread_create(&thread_handles[thread],NULL,Hello,(void*) thread);
+   printf("Hello from main Thread.\n");
+   for(thread=0;thread<thread_count;thread++)
+      pthread_join(thread_handles[thread],NULL);
+}
+
+void* Hello(void* rank){
+   long my_rank = long(rank);
+   printf("Hello from Thread %d of %d.\n",my_rank,thread_count);
+}
+[23bcs114@mepcolinux EX-5]$./p1 5
+Hello from Thread 0 of 5.
+Hello from Thread 2 of 5.
+Hello from Thread 1 of 5.
+Hello from Thread 3 of 5.
+Hello from main Thread.
+Hello from Thread 4 of 5.
+[23bcs114@mepcolinux EX-5]$cat matop.c
+#include <stdio.h>
+#include <pthread.h>
+
+#define MAX 10
+
+int A[MAX][MAX], B[MAX][MAX], Sum[MAX][MAX], Mul[MAX][MAX]={0};
+int R, C;
+
+void* add_matrices(void* arg) {
+    for (int i = 0; i < R; i++) {
+        for (int j = 0; j < C; j++) {
+            Sum[i][j] = A[i][j] + B[i][j];
+        }
+    }
+    return NULL;
+}
+
+void* mul_matrices(void* arg) {
+    for (int i = 0; i < R; i++) {
+        for (int j = 0; j < C; j++) {
+  for (int k=0; k<R; k++){
+            Mul[i][j] += A[i][k] * B[k][j];
+       
+  }
+}
+    }
+    return NULL;
+}
+
+int main() {
+    pthread_t thread1, thread2;
+    printf("Enter rows and columns: ");
+    scanf("%d %d", &R, &C);
+    printf("Enter Matrix A:\n");
+    for(int i=0; i<R; i++){
+       for(int j=0; j<C; j++){
+ scanf("%d", &A[i][j]);
+       }
+    }
+    printf("Enter Matrix B:\n");
+    for(int i=0; i<R; i++){
+       for(int j=0; j<C; j++){
+ scanf("%d", &B[i][j]);
+       }
+    }
+    pthread_create(&thread1, NULL, add_matrices, NULL);
+    pthread_create(&thread2, NULL, mul_matrices, NULL);
+    pthread_join(thread1, NULL);
+    if (R!=C){
+       printf("Cannot Do multiplication\n");
+       return 0;
+    }
+    pthread_join(thread2, NULL);
+    printf("\nAddition Result:\n");
+    for(int i=0; i<R; i++) {
+        for(int j=0; j<C; j++) printf("%d ", Sum[i][j]);
+        printf("\n");
+    }
+    printf("\nMultiplication Result:\n");
+    for(int i=0; i<R; i++) {
+        for(int j=0; j<C; j++) printf("%d ", Mul[i][j]);
+        printf("\n");
+    }
+    return 0;
+}
+
+[23bcs114@mepcolinux EX-5]$./p2
+Enter rows and columns: 3 3
+Enter Matrix A:
+1 2 3
+4 5 6
+7 8 9
+Enter Matrix B:
+9 8 7
+6 5 4
+3 2 1
+
+Addition Result:
+10 10 10
+10 10 10
+10 10 10
+
+Multiplication Result:
+30 24 18
+84 69 54
+138 114 90
+[23bcs114@mepcolinux EX-5]$cat sum_arr.c
+#include<stdio.h>
+#include<stdlib.h>
+#include<pthread.h>
+
+int arr[100];
+int n,num_threads;
+int partial_sum[10];
+
+void* sumArray(void* arg){
+   int thread_id = *(int *)arg;
+   int start = thread_id*(n/num_threads);
+   int end = start+(n/num_threads);
+   if(thread_id==num_threads-1)
+       end=n;
+   partial_sum[thread_id] = 0;
+   for(int i=start;i<end;i++)
+      partial_sum[thread_id]+=arr[i];
+}
+
+int main(){
+   pthread_t threads[10];
+   int thread_id[10];
+   int total_sum=0;
+   printf("Enter number of elements: ");
+   scanf("%d",&n);
+   printf("Enter Array Elements:");
+   for(int i=0;i<n;i++)
+      scanf("%d",&arr[i]);
+   printf("Enter Number of threads: ");
+   scanf("%d",&num_threads);
+   for(int i=0;i<num_threads;i++){
+      thread_id[i]=i;
+      pthread_create(&threads[i],NULL,sumArray,&thread_id[i]);
+   }
+   for(int i=0;i<num_threads;i++){
+      pthread_join(threads[i],NULL);
+      printf("Partial sum of Thread %d : %d\n",i,partial_sum[i]);
+      total_sum+=partial_sum[i];
+   }
+   printf("Total Sum is %d\n",total_sum);
+}
+[23bcs114@mepcolinux EX-5]$./p3
+Enter number of elements: 10
+Enter Array Elements:1 2 3 4 5 6 7 8 9 10
+Enter Number of threads: 5
+Partial sum of Thread 0 : 3
+Partial sum of Thread 1 : 7
+Partial sum of Thread 2 : 11
+Partial sum of Thread 3 : 15
+Partial sum of Thread 4 : 19
+Total Sum is 55
+[23bcs114@mepcolinux EX-5]$./p3
+Enter number of elements: 10
+Enter Array Elements:1 2 3 4 5 6 7 8 9 10
+Enter Number of threads: 6
+Partial sum of Thread 0 : 1
+Partial sum of Thread 1 : 2
+Partial sum of Thread 2 : 3
+Partial sum of Thread 3 : 4
+Partial sum of Thread 4 : 5
+Partial sum of Thread 5 : 40
+Total Sum is 55
