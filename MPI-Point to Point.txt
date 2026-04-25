@@ -1,0 +1,119 @@
+III-B2@gbl: ~/EX-3cat p1.c
+#include <mpi.h>
+#include <stdio.h>
+int main(){
+    int size;
+    int rank;
+    MPI_Init(NULL, NULL);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    printf("Hello from process %d\n", rank);  
+    MPI_Finalize();
+    return 0;
+}
+III-B2@gbl: ~/EX-3mpiexec -n 7 ./p1
+Hello from process 3
+Hello from process 0
+Hello from process 2
+Hello from process 1
+III-B2@gbl: ~/EX-3mpiexec -n 4 -report-bindings --bind-to core ./p1
+[gbl:05281] MCW rank 0 bound to socket 0[core 0[hwt 0]]: [B/././././.]
+[gbl:05281] MCW rank 1 bound to socket 0[core 1[hwt 0]]: [./B/./././.]
+[gbl:05281] MCW rank 2 bound to socket 0[core 2[hwt 0]]: [././B/././.]
+[gbl:05281] MCW rank 3 bound to socket 0[core 3[hwt 0]]: [./././B/./.]
+Hello from process 0
+Hello from process 1
+Hello from process 2
+Hello from process 3
+III-B2@gbl: ~/EX-3mpiexec -n 4 -oversubscribe ./p1
+Hello from process 4
+Hello from process 5
+Hello from process 0
+Hello from process 1
+Hello from process 3
+Hello from process 2
+III-B2@gbl: ~/EX-3cat p2.c
+#include<stdio.h>
+#include<string.h>
+#include<ctype.h>
+#include<mpi.h>
+#define MAX 100
+int is_Palindrome(char str[])
+{
+int i=0,j=strlen(str)-1;
+while(i<j)
+{
+if(str[i]!=str[j])
+return 0;
+i++;
+j--;
+}
+return 1;
+}
+void to_upper(char* msg)
+{
+int i,j=0;
+for(i=0;i<strlen(msg);i++)
+{
+msg[i]=toupper(msg[j]);
+j++;
+}
+}
+int main()
+{
+int rank,size;
+const char arr[3][50]={"hello","madam","ice"};
+char msg[MAX];
+MPI_Status status;
+MPI_Init(NULL,NULL);
+MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        MPI_Comm_size(MPI_COMM_WORLD,&size);
+        if(rank!=0)
+{
+if(rank%2!=0){
+MPI_Send(arr[rank-1],strlen(arr[rank-1])+1,MPI_CHAR,0,1,MPI_COMM_WORLD);
+}
+else{
+MPI_Send(arr[rank-1],strlen(arr[rank-1])+1,MPI_CHAR,0,2,MPI_COMM_WORLD);
+}
+}
+else
+{
+     for(int i=1;i<size;i++){
+                       MPI_Recv(msg, MAX, MPI_CHAR, i, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+      if(strlen(msg)!=0){
+                       if(status.MPI_TAG == 1){
+                                   to_upper(msg);
+          printf("From process with rank %d (odd) : %s\n",status.MPI_SOURCE,msg);  
+                       }
+                       else if(status.MPI_TAG == 2){
+                                  printf("From process with rank %d (even) :%s -> %s\n",status.MPI_SOURCE,msg,is_Palindrome(msg)?"Palindrome\n":"Not Palindrome\n");
+                       }}
+      else
+      printf("Extra process with rank %d with empty message\n",status.MPI_SOURCE);
+             }
+       }
+       MPI_Finalize();
+       return 0;
+}
+III-B2@gbl: ~/EX-3mpiexec -n 4 ./p2
+From process with rank 1 (odd) : HELLO
+From process with rank 2 (even) :madam -> Palindrome
+
+From process with rank 3 (odd) : ICE
+III-B2@gbl: ~/EX-3mpiexec -n 6 --oversubscribe ./p2
+From process with rank 1 (odd) : HELLO
+From process with rank 2 (even) :madam -> Palindrome
+
+From process with rank 3 (odd) : ICE
+Extra process with rank 4 with empty message
+Extra process with rank 5 with empty message
+III-B2@gbl: ~/EX-3mpiexec -n 4 --oversubscribe -report-bindings --bind-to core ./p2
+[gbl:05371] MCW rank 0 bound to socket 0[core 0[hwt 0]]: [B/././././.]
+[gbl:05371] MCW rank 1 bound to socket 0[core 1[hwt 0]]: [./B/./././.]
+[gbl:05371] MCW rank 2 bound to socket 0[core 2[hwt 0]]: [././B/././.]
+[gbl:05371] MCW rank 3 bound to socket 0[core 3[hwt 0]]: [./././B/./.]
+From process with rank 1 (odd) : HELLO
+From process with rank 2 (even) :madam -> Palindrome
+
+From process with rank 3 (odd) : ICE
