@@ -1,0 +1,109 @@
+[23bcs114@mepcolinux EX-6]$cat p1.c
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <semaphore.h>
+#include <unistd.h>
+#include <time.h>
+
+typedef struct {
+    int a, b;
+    char op; // '+', '-', '*', '/'
+} Job;
+
+Job work_buffer;
+sem_t sem_empty, sem_full, sem_mutex;
+FILE *result_file;
+int jobs_to_do = 8;
+
+void* compute_thread(void* arg) {
+    char target_op = *(char*)arg;
+    pthread_t tid = pthread_self();
+    while (1) {
+        sem_wait(&sem_full);
+        sem_wait(&sem_mutex);
+        if (work_buffer.op == target_op) {
+            int res = 0;
+            float res_div = 0;
+            if (target_op == '+') res = work_buffer.a + work_buffer.b;
+            else if (target_op == '-') res = work_buffer.a - work_buffer.b;
+            else if (target_op == '*') res = work_buffer.a * work_buffer.b;
+            else if (target_op == '/') {
+                if (work_buffer.b != 0) res_div = (float)work_buffer.a / work_buffer.b;
+            }
+            result_file = fopen("result_file.txt", "a");
+            if (target_op == '/')
+                fprintf(result_file, "Thread - %lu: %d / %d = %.2f\n", (unsigned long)tid, work_buffer.a, work_buffer.b, res_div);
+            else
+                fprintf(result_file, "Thread - %lu: %d %c %d = %d\n", (unsigned long)tid,  work_buffer.a, target_op, work_buffer.b, res);
+            fclose(result_file);
+            printf("Thread [%c] processed a job.\n", target_op);        
+            sem_post(&sem_mutex);
+            sem_post(&sem_empty);
+        }
+else {
+            sem_post(&sem_mutex);
+            sem_post(&sem_full);
+            usleep(1000);
+        }  
+        if (jobs_to_do <= 0) break;
+    }
+    return NULL;
+}
+
+int main() {
+    pthread_t threads[4];
+    char ops[4] = {'+', '-', '*', '/'};
+    srand(time(NULL));
+    result_file = fopen("result_file.txt", "w");
+    fclose(result_file);
+    printf("---+Calculator using Pthreads+--\n");
+    sem_init(&sem_empty, 0, 1);
+    sem_init(&sem_full, 0, 0);  
+    sem_init(&sem_mutex, 0, 1);
+    for (int i = 0; i < 4; i++) {
+        pthread_create(&threads[i], NULL, compute_thread, &ops[i]);
+    }
+    for (int i = 0; i < 8; i++) {
+        sem_wait(&sem_empty);
+        sem_wait(&sem_mutex);
+        work_buffer.a = rand() % 50 + 1;
+        work_buffer.b = rand() % 10 + 1;
+        work_buffer.op = ops[rand() % 4];
+        printf("Created job %d %c %d\n", work_buffer.a, work_buffer.op, work_buffer.b);
+        sem_post(&sem_mutex);
+        sem_post(&sem_full);        
+        jobs_to_do--;
+        sleep(1);
+    }
+    printf("Finished generating jobs. Check 'result_file.txt'.\n");
+    return 0;
+}
+[23bcs114@mepcolinux EX-6]$./p1
+---+Calculator using Pthreads+--
+Created job 12 / 3
+Thread [/] processed a job.
+Created job 42 / 2
+Thread [/] processed a job.
+Created job 33 / 6
+Thread [/] processed a job.
+Created job 2 + 4
+Thread [+] processed a job.
+Created job 39 + 5
+Thread [+] processed a job.
+Created job 16 / 9
+Thread [/] processed a job.
+Created job 14 + 8
+Thread [+] processed a job.
+Created job 22 + 1
+Thread [+] processed a job.
+Finished generating jobs. Check 'result_file.txt'.
+[23bcs114@mepcolinux EX-6]$cat result_file.txt
+Thread - 140667945559808: 12 / 3 = 4.00
+Thread - 140667945559808: 42 / 2 = 21.00
+Thread - 140667945559808: 33 / 6 = 5.50
+Thread - 140667970737920: 2 + 4 = 6
+Thread - 140667970737920: 39 + 5 = 44
+Thread - 140667945559808: 16 / 9 = 1.78
+Thread - 140667970737920: 14 + 8 = 22
+Thread - 140667970737920: 22 + 1 = 23
