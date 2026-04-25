@@ -1,109 +1,263 @@
-[23bcs114@mepcolinux EX-6]$cat p1.c
+[23bcs114@mepcolinux EX-7]$cat p1.c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <pthread.h>
+
+#define BUFFER_SIZE 10
+#define WORD_LEN 50
+#define THREADS 3
+
+char *dictionary[] = {"arch","bios","orange","linux","windows","compiler","interpreter","nginx","severless"};
+int dict_size = 9;
+
+char buffer[BUFFER_SIZE][WORD_LEN];
+int count = 0;
+int done = 0;
+
+pthread_mutex_t lock;
+pthread_cond_t not_empty;
+pthread_cond_t not_full;
+
+int spell_check(char *word)
+{
+    for(int i = 0; i < dict_size; i++)
+    {
+        if(strcmp(dictionary[i], word) == 0)
+            return 1;
+    }
+    return 0;
+}
+
+void* spell_checker(void *arg)
+{
+    char word[WORD_LEN];
+    while(1)
+    {
+        pthread_mutex_lock(&lock);
+        while(count == 0 && !done)
+            pthread_cond_wait(&not_empty, &lock);
+
+        if(count == 0 && done) {
+            pthread_mutex_unlock(&lock);
+            break;
+        }
+
+        strcpy(word, buffer[count - 1]);
+        count--;
+        pthread_cond_signal(&not_full);
+        pthread_mutex_unlock(&lock);
+
+        int correct = spell_check(word);
+
+        pthread_mutex_lock(&lock);
+        if(correct)
+            printf("%s -> Correct\n", word);
+        else
+            printf("%s -> Incorrect\n", word);
+        pthread_mutex_unlock(&lock);
+    }
+    return NULL;
+}
+
+int main()
+{
+    pthread_t workers[THREADS];
+    pthread_mutex_init(&lock, NULL);
+    pthread_cond_init(&not_empty, NULL);
+    pthread_cond_init(&not_full, NULL);
+    printf("*** Spell Checker Using Pthread Synchronization ***\n");
+    /*printf("Dictionary available:\n");
+    for(int i = 0; i < dict_size; i++)
+        printf(" - %s\n", dictionary[i]);
+    printf("\n");*/
+
+    int n;
+    printf("Enter number of words to check: ");
+    scanf("%d", &n);
+
+    for(int i = 0; i < THREADS; i++)
+        pthread_create(&workers[i], NULL, spell_checker, NULL);
+
+    printf("Enter words one by one:\n");
+    for(int i = 0; i < n; i++)
+    {
+        char word[WORD_LEN];
+        scanf("%s", word);
+
+        pthread_mutex_lock(&lock);
+        while(count == BUFFER_SIZE)
+            pthread_cond_wait(&not_full, &lock);
+        strcpy(buffer[count++], word);
+        pthread_cond_signal(&not_empty);
+        pthread_mutex_unlock(&lock);
+    }
+    pthread_mutex_lock(&lock);
+    done = 1;
+    pthread_cond_broadcast(&not_empty);
+    pthread_mutex_unlock(&lock);
+
+    for(int i = 0; i < THREADS; i++)
+        pthread_join(workers[i], NULL);
+
+    pthread_mutex_destroy(&lock);
+    pthread_cond_destroy(&not_empty);
+    pthread_cond_destroy(&not_full);
+
+    return 0;
+}
+[23bcs114@mepcolinux EX-7]$./p1
+*** Spell Checker Using Pthread Synchronization ***
+Enter number of words to check: 3
+Enter words one by one:
+arch
+arch -> Correct
+complier
+complier -> Incorrect
+ngnix
+ngnix -> Incorrect
+[23bcs114@mepcolinux EX-7]$cat p2.c
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
-#include <semaphore.h>
 #include <unistd.h>
-#include <time.h>
-
-typedef struct {
-    int a, b;
-    char op; // '+', '-', '*', '/'
-} Job;
-
-Job work_buffer;
-sem_t sem_empty, sem_full, sem_mutex;
-FILE *result_file;
-int jobs_to_do = 8;
-
-void* compute_thread(void* arg) {
-    char target_op = *(char*)arg;
-    pthread_t tid = pthread_self();
+int pending_submissions = 0;
+int max_limit = 0;
+int evaluation_done = 0;
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t cond_evaluator = PTHREAD_COND_INITIALIZER;
+pthread_cond_t cond_submitter = PTHREAD_COND_INITIALIZER;
+void* student_submitter(void* arg) {
+    char input;
+    printf("\n--- COMMANDS ---\nType 's' to SUBMIT a script or 'q' to End.\n ----------------\n");
     while (1) {
-        sem_wait(&sem_full);
-        sem_wait(&sem_mutex);
-        if (work_buffer.op == target_op) {
-            int res = 0;
-            float res_div = 0;
-            if (target_op == '+') res = work_buffer.a + work_buffer.b;
-            else if (target_op == '-') res = work_buffer.a - work_buffer.b;
-            else if (target_op == '*') res = work_buffer.a * work_buffer.b;
-            else if (target_op == '/') {
-                if (work_buffer.b != 0) res_div = (float)work_buffer.a / work_buffer.b;
-            }
-            result_file = fopen("result_file.txt", "a");
-            if (target_op == '/')
-                fprintf(result_file, "Thread - %lu: %d / %d = %.2f\n", (unsigned long)tid, work_buffer.a, work_buffer.b, res_div);
-            else
-                fprintf(result_file, "Thread - %lu: %d %c %d = %d\n", (unsigned long)tid,  work_buffer.a, target_op, work_buffer.b, res);
-            fclose(result_file);
-            printf("Thread [%c] processed a job.\n", target_op);        
-            sem_post(&sem_mutex);
-            sem_post(&sem_empty);
+        scanf(" %c", &input);
+        if (input == 's' || input == 'S') {
+            pthread_mutex_lock(&mutex);        
+            while (pending_submissions >= max_limit) {
+                printf("[System] LIMIT REACHED (%d). Waiting for evaluator...\n", max_limit);
+                pthread_cond_wait(&cond_submitter, &mutex);
+            }          
+            pending_submissions++;
+            printf("[Student] Submission successful! Pending: %d\n", pending_submissions);
+            pthread_cond_signal(&cond_evaluator);
+            pthread_mutex_unlock(&mutex);
         }
+else if (input == 'q' || input =='Q'){
+  printf("Done..\n");
+  exit(1);
+}
 else {
-            sem_post(&sem_mutex);
-            sem_post(&sem_full);
-            usleep(1000);
-        }  
-        if (jobs_to_do <= 0) break;
+            printf("Invalid command. Use 's' to submit.\n");
+        }
+    }
+    return NULL;
+}
+
+void* evaluator(void* arg) {
+    while (1) {
+        pthread_mutex_lock(&mutex);
+        while (pending_submissions == 0) {
+            pthread_cond_wait(&cond_evaluator, &mutex);
+        }    
+        printf("[Evaluator] Starting evaluation...\n");
+        pthread_mutex_unlock(&mutex);
+        sleep(3);        
+        pthread_mutex_lock(&mutex);
+        pending_submissions--;
+        evaluation_done = 1;
+        printf("[Evaluator] Finished. Remaining in queue: %d\n", pending_submissions);      
+        pthread_cond_signal(&cond_submitter);
+        pthread_mutex_unlock(&mutex);
+    }
+    return NULL;
+}
+
+void* monitor(void* arg) {
+    int last_seen = -1;
+    while (1) {
+        pthread_mutex_lock(&mutex);
+        if (pending_submissions != last_seen) {
+            printf("\n>>> [Monitor] Queue Status: %d scripts waiting.\n", pending_submissions);
+            last_seen = pending_submissions;
+        }
+        pthread_mutex_unlock(&mutex);
+        usleep(500000);
+    }
+    return NULL;
+}
+
+void* result_publisher(void* arg) {
+    while (1) {
+        pthread_mutex_lock(&mutex);
+        if (evaluation_done) {
+            printf("[Publisher] Result published for an evaluated script.\n");
+            evaluation_done = 0;
+        }
+        pthread_mutex_unlock(&mutex);
+        usleep(100000);
     }
     return NULL;
 }
 
 int main() {
-    pthread_t threads[4];
-    char ops[4] = {'+', '-', '*', '/'};
-    srand(time(NULL));
-    result_file = fopen("result_file.txt", "w");
-    fclose(result_file);
-    printf("---+Calculator using Pthreads+--\n");
-    sem_init(&sem_empty, 0, 1);
-    sem_init(&sem_full, 0, 0);  
-    sem_init(&sem_mutex, 0, 1);
-    for (int i = 0; i < 4; i++) {
-        pthread_create(&threads[i], NULL, compute_thread, &ops[i]);
-    }
-    for (int i = 0; i < 8; i++) {
-        sem_wait(&sem_empty);
-        sem_wait(&sem_mutex);
-        work_buffer.a = rand() % 50 + 1;
-        work_buffer.b = rand() % 10 + 1;
-        work_buffer.op = ops[rand() % 4];
-        printf("Created job %d %c %d\n", work_buffer.a, work_buffer.op, work_buffer.b);
-        sem_post(&sem_mutex);
-        sem_post(&sem_full);        
-        jobs_to_do--;
-        sleep(1);
-    }
-    printf("Finished generating jobs. Check 'result_file.txt'.\n");
+    pthread_t t1, t2, t3, t4;
+    printf("**** Printer Submit Queue using Pthread Semaphore ****\n");
+    printf("Enter the MAX capacity of the submission queue: ");
+    scanf("%d", &max_limit);
+
+    pthread_create(&t1, NULL, student_submitter, NULL);
+    pthread_create(&t2, NULL, evaluator, NULL);
+    pthread_create(&t3, NULL, monitor, NULL);
+    pthread_create(&t4, NULL, result_publisher, NULL);
+
+    pthread_join(t1, NULL);
+    pthread_join(t2, NULL);
+    pthread_join(t3, NULL);
+    pthread_join(t4, NULL);
+
     return 0;
 }
-[23bcs114@mepcolinux EX-6]$./p1
----+Calculator using Pthreads+--
-Created job 12 / 3
-Thread [/] processed a job.
-Created job 42 / 2
-Thread [/] processed a job.
-Created job 33 / 6
-Thread [/] processed a job.
-Created job 2 + 4
-Thread [+] processed a job.
-Created job 39 + 5
-Thread [+] processed a job.
-Created job 16 / 9
-Thread [/] processed a job.
-Created job 14 + 8
-Thread [+] processed a job.
-Created job 22 + 1
-Thread [+] processed a job.
-Finished generating jobs. Check 'result_file.txt'.
-[23bcs114@mepcolinux EX-6]$cat result_file.txt
-Thread - 140667945559808: 12 / 3 = 4.00
-Thread - 140667945559808: 42 / 2 = 21.00
-Thread - 140667945559808: 33 / 6 = 5.50
-Thread - 140667970737920: 2 + 4 = 6
-Thread - 140667970737920: 39 + 5 = 44
-Thread - 140667945559808: 16 / 9 = 1.78
-Thread - 140667970737920: 14 + 8 = 22
-Thread - 140667970737920: 22 + 1 = 23
+[23bcs114@mepcolinux EX-7]$./p2
+**** Printer Submit Queue using Pthread Semaphore ****
+Enter the MAX capacity of the submission queue: 3
+
+--- COMMANDS ---
+Type 's' to SUBMIT a script or 'q' to End.
+ ----------------
+
+>>> [Monitor] Queue Status: 0 scripts waiting.
+s
+[Student] Submission successful! Pending: 1
+[Evaluator] Starting evaluation...
+s
+[Student] Submission successful! Pending: 2
+s
+>>> [Monitor] Queue Status: 2 scripts waiting.
+
+[Student] Submission successful! Pending: 3
+s
+[System] LIMIT REACHED (3). Waiting for evaluator...
+s
+>>> [Monitor] Queue Status: 3 scripts waiting.
+[Evaluator] Finished. Remaining in queue: 2
+[Evaluator] Starting evaluation...
+[Student] Submission successful! Pending: 3
+[Publisher] Result published for an evaluated script.
+[Evaluator] Finished. Remaining in queue: 2
+[Evaluator] Starting evaluation...
+[Publisher] Result published for an evaluated script.
+
+>>> [Monitor] Queue Status: 2 scripts waiting.
+[Evaluator] Finished. Remaining in queue: 1
+[Evaluator] Starting evaluation...
+[Publisher] Result published for an evaluated script.
+
+>>> [Monitor] Queue Status: 1 scripts waiting.
+[Evaluator] Finished. Remaining in queue: 0
+[Publisher] Result published for an evaluated script.
+
+>>> [Monitor] Queue Status: 0 scripts waiting.
+q
+[Student] Submission successful! Pending: 1
+Done..
