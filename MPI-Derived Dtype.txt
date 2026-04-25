@@ -1,0 +1,106 @@
+III-B2@gbl:~/EX-4$ cat p1.c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <mpi.h>
+
+typedef struct {
+    char name[20];
+    int roll;
+    int total;
+    char grade;
+} Student;
+
+char calculate_grade(int marks) {
+    if (marks >= 90) return 'A';
+    if (marks >= 80) return 'B';
+    if (marks >= 70) return 'C';
+    if (marks >= 60) return 'D';
+    return 'F';
+}
+int main(int argc, char** argv) {
+    int rank, size;
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    MPI_Datatype MPI_STUDENT;
+    int lengths[4] = {20, 1, 1, 1};
+    MPI_Aint displacements[4],base,addr1,addr2,addr3,addr4;
+    MPI_Datatype types[4] = {MPI_CHAR, MPI_INT, MPI_INT, MPI_CHAR};
+    Student temp;
+    MPI_Get_address(&temp,&base);
+    MPI_Get_address(&temp.name,&addr1);
+    MPI_Get_address(&temp.roll,&addr2);
+    MPI_Get_address(&temp.total,&addr3);
+    MPI_Get_address(&temp.grade,&addr4);
+    displacements[0] = addr1-base;
+    displacements[1] = addr2-base;
+    displacements[2] = addr3-base;
+    displacements[3] = addr4-base;
+    MPI_Type_create_struct(4, lengths, displacements, types, &MPI_STUDENT);
+    MPI_Type_commit(&MPI_STUDENT);
+    Student *all_students = NULL;
+    int total_count = 0;
+    if (rank == 0) {
+        FILE *fp = fopen("input.txt", "r");
+        if (!fp) {
+            printf("Error: Could not open input.txt\n");
+            MPI_Abort(MPI_COMM_WORLD, 1);
+        }
+        all_students = malloc(100 * sizeof(Student));
+        while (fscanf(fp, "%s %d %d", all_students[total_count].name,
+                     &all_students[total_count].roll,
+                     &all_students[total_count].total) == 3) {
+            total_count++;
+        }
+        fclose(fp);
+    }
+    MPI_Bcast(&total_count, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    int chunk_size = total_count / size;
+    Student *local_data = malloc(chunk_size * sizeof(Student));
+    MPI_Scatter(all_students, chunk_size, MPI_STUDENT, local_data, chunk_size, MPI_STUDENT, 0, MPI_COMM_WORLD);
+    for (int i = 0; i < chunk_size; i++) {
+        local_data[i].grade = calculate_grade(local_data[i].total);
+    }
+    MPI_Gather(local_data, chunk_size, MPI_STUDENT, all_students, chunk_size, MPI_STUDENT, 0, MPI_COMM_WORLD);
+    if (rank == 0) {
+        FILE *out = fopen("grades.txt", "w");
+        for (int i = 0; i < total_count; i++) {
+            fprintf(out, "%s (Roll: %d) - Marks: %d, Grade: %c\n",
+                    all_students[i].name, all_students[i].roll,
+                    all_students[i].total, all_students[i].grade);
+        }
+        fclose(out);
+        printf("Grades successfully written to grades.txt\n");
+        free(all_students);
+    }
+    free(local_data);
+    MPI_Type_free(&MPI_STUDENT);
+    MPI_Finalize();
+    return 0;
+}
+III-B2@gbl:~/EX-4$ mpiexec -n 2 ./p1
+Grades successfully written to grades.txt
+III-B2@gbl:~/EX-4$ cat grades.txt
+Rohit (Roll: 114) - Marks: 78, Grade: C
+Sai (Roll: 115) - Marks: 98, Grade: A
+Santhosh (Roll: 116) - Marks: 85, Grade: B
+Seeetha (Roll: 117) - Marks: 90, Grade: A
+Kalyan (Roll: 113) - Marks: 45, Grade: F
+Vignesh (Roll: 123) - Marks: 89, Grade: B
+III-B2@gbl:~/EX-4$ cat input.txt
+Rohit 114 78
+Sai 115 98
+Santhosh 116 85
+Seeetha 117 90
+Kalyan 113 45
+Vignesh 123 89
+III-B2@gbl:~/EX-4$ mpiexec -n 3 ./p1
+Grades successfully written to grades.txt
+III-B2@gbl:~/EX-4$ cat grades.txt
+Rohit (Roll: 114) - Marks: 78, Grade: C
+Sai (Roll: 115) - Marks: 98, Grade: A
+Santhosh (Roll: 116) - Marks: 85, Grade: B
+Seeetha (Roll: 117) - Marks: 90, Grade: A
+Kalyan (Roll: 113) - Marks: 45, Grade: F
+Vignesh (Roll: 123) - Marks: 89, Grade: B
