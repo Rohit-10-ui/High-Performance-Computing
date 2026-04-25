@@ -1,0 +1,193 @@
+[23bcs114@mepcolinux EX-8]$cat p1.c
+#include<stdio.h>
+#include<stdlib.h>
+#include<omp.h>
+#include<time.h>
+
+int main(){
+   int N;
+   printf("**** Sum of Two Array using Parallel for ****\n");
+   printf("Enter number of elements in Array: ");
+   scanf("%d",&N);
+   int a[N],b[N],c[N];
+   srand(time(NULL));
+   for(int i=0;i<N;i++){
+      a[i]=rand()%50;
+      b[i]=rand()%50;
+   }
+   printf("A: ");
+   for(int i=0;i<N;i++)
+      printf("%d ",a[i]);
+   printf("\n");
+   printf("B: ");
+   for(int i=0;i<N;i++)
+      printf("%d ",b[i]);
+   printf("\n");
+   #pragma omp parallel for
+   for(int i=0;i<N;i++)
+      c[i]=a[i]+b[i];
+   printf("Result: ");
+   for(int i=0;i<N;i++)
+      printf("%d ",c[i]);
+   printf("\n");
+}
+[23bcs114@mepcolinux EX-8]$./p1
+**** Sum of Two Array using Parallel for ****
+Enter number of elements in Array: 8
+A: 8 36 30 16 43 28 28 27
+B: 31 44 32 39 11 10 28 39
+Result: 39 80 62 55 54 38 56 66
+[23bcs114@mepcolinux EX-8]$cat p2.c
+#include<stdio.h>
+#include<stdlib.h>
+#include<omp.h>
+#include<time.h>
+
+int main(){
+   int N,s;
+   printf("**** Sum of Array with Scalar using Parallel for ****\n");
+   printf("Enter number of elements in Array: ");
+   scanf("%d",&N);
+   printf("Enter Constant :");
+   scanf("%d",&s);
+   int a[N],c[N];
+   srand(time(NULL));
+   for(int i=0;i<N;i++){
+      a[i]=rand()%50;
+   }
+   printf("A: ");
+   for(int i=0;i<N;i++)
+      printf("%d ",a[i]);
+   printf("\n");
+   #pragma omp parallel for
+   for(int i=0;i<N;i++)
+      c[i]=a[i]+s;
+   printf("Result: ");
+   for(int i=0;i<N;i++)
+      printf("%d ",c[i]);
+   printf("\n");
+}
+[23bcs114@mepcolinux EX-8]$./p2
+**** Sum of Array with Scalar using Parallel for ****
+Enter number of elements in Array: 100
+Enter Constant :15
+A: 31 1 12 47 20 34 3 3 21 39 28 15 37 44 3 28 14 40 37 49 6 20 19 26 11 2 45 38 1 33 30 34 34 44 32 7 28 35 10 0 24 40 17 14 34 22 42 0 12 31 1 21 1 22 47 14 25 44 4 28 27 35 12 14 29 44 21 10 29 33 10 6 23 29 20 9 2 14 11 16 47 12 37 49 35 36 15 12 30 20 40 10 7 2 24 38 49 45 48 30
+Result: 46 16 27 62 35 49 18 18 36 54 43 30 52 59 18 43 29 55 52 64 21 35 34 41 26 17 60 53 16 48 45 49 49 59 47 22 43 50 25 15 39 55 32 29 49 37 57 15 27 46 16 36 16 37 62 29 40 59 19 43 42 50 27 29 44 59 36 25 44 48 25 21 38 44 35 24 17 29 26 31 62 27 52 64 50 51 30 27 45 35 55 25 22 17 39 53 64 60 63 45
+[23bcs114@mepcolinux EX-8]$cat p3.c
+#include <stdio.h>
+#include<stdlib.h>
+#include <omp.h>
+#include<time.h>
+
+int main() {
+    int N;
+    srand(time(NULL));
+    printf("******** Mirror Matrix Using Parallel for ********");
+    printf("Enter size of matrix(N): ");
+    scanf("%d",&N);
+    int A[N][N],mirror[N][N];
+    for(int i=0;i<N;i++){
+       for(int j=0;j<N;j++){
+ A[i][j]=rand()%50;
+       }
+    }
+    printf("Matrix:\n");
+    for(int i=0;i<N;i++){
+       for(int j=0;j<N;j++){
+ printf("%d ",A[i][j]);
+       }
+       printf("\n");
+    }
+    #pragma omp parallel for collapse(2)
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++) {
+            mirror[i][j] = A[i][N - j - 1];
+        }
+    }
+
+    printf("Original Matrix:\n");
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++)
+            printf("%d ", A[i][j]);
+        printf("\n");
+    }
+
+    printf("\nMirror Matrix:\n");
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++)
+            printf("%d ", mirror[i][j]);
+        printf("\n");
+    }
+
+    return 0;
+}
+[23bcs114@mepcolinux EX-8]$./p3
+Enter size of matrix(N): 7
+Matrix:
+11 33 47 23 40 13 15
+26 48 12 47 20 9 8
+37 9 43 32 5 3 17
+6 38 35 30 22 16 33
+9 24 14 22 7 14 45
+0 27 13 26 25 25 24
+48 34 32 35 45 25 17
+Original Matrix:
+11 33 47 23 40 13 15
+26 48 12 47 20 9 8
+37 9 43 32 5 3 17
+6 38 35 30 22 16 33
+9 24 14 22 7 14 45
+0 27 13 26 25 25 24
+48 34 32 35 45 25 17
+
+Mirror Matrix:
+15 13 40 23 47 33 11
+8 9 20 47 12 48 26
+17 3 5 32 43 9 37
+33 16 22 30 35 38 6
+45 14 7 22 14 24 9
+24 25 25 26 13 27 0
+17 25 45 35 32 34 48
+[23bcs114@mepcolinux EX-8]$cat p4.c
+#include <stdio.h>
+#include <omp.h>
+#include<time.h>
+#include<stdlib.h>
+
+int  main() {
+    int N;
+    printf("**** Running Minimum using Parallel For ****\n");
+    printf("Enter number of Elements in Array: ");
+    scanf("%d",&N);
+    srand(time(NULL));
+    int arr[N];
+    for(int i=0;i<N;i++)
+       arr[i]=rand()%50;
+    int running_min[N];
+    int global_min = arr[0];
+    #pragma omp parallel for
+    for (int i = 0; i < N; i++) {
+        int local_min = arr[i];
+        for (int j = 0; j <= i; j++) {
+            if (arr[j] < local_min) {
+                local_min = arr[j];
+            }
+        }
+        running_min[i] = local_min;
+    }
+    printf("Original Array:\n");
+    for (int i = 0; i < N; i++)
+        printf("%d ", arr[i]);
+    printf("\nRunning Minimum:\n");
+    for (int i = 0; i < N; i++)
+        printf("%d ", running_min[i]);
+    printf("\n");
+    return 0;
+}
+[23bcs114@mepcolinux EX-8]$./p4
+**** Running Minimum using Parallel For ****
+Enter number of Elements in Array: 9
+Original Array:
+14 3 28 46 34 1 26 33 18
+Running Minimum:
+14 3 3 3 3 1 1 1 1
