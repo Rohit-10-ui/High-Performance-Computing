@@ -1,0 +1,311 @@
+[23bcs114@mepcolinux EX-1]$cat sr.c
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+int main() {
+    int m, n, p;
+    printf("Enter number of rows of matrix 1 (m): ");
+    scanf("%d", &m);
+    printf("Enter number of columns of matrix 1 / rows of matrix 2 (n): ");
+    scanf("%d", &n);
+    printf("Enter number of columns of matrix 2 (p): ");
+    scanf("%d", &p);
+    /*int mat1[850][850];
+    int mat2[850][850];
+    int res[850][850];*/
+    int *mat1 = (int *)malloc(m * n * sizeof(int));
+    int *mat2 = (int *)malloc(n * p * sizeof(int));
+    int *res  = (int *)malloc(m * p * sizeof(int));
+    printf("\nMatrix 1 (Randomly Generated):\n");
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < n; j++) {
+            mat1[i * n + j] = rand() % 10;
+   /*mat1[i][j]=rand()%100;
+   printf("%d",mat1[i][j]);*/
+            //printf("%d ", mat1[i * n + j]);
+        }
+        //printf("\n");
+    }
+    printf("\nMatrix 2 (Randomly Generated):\n");
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < p; j++) {
+            mat2[i * p + j] = rand() % 10;                              
+            //printf("%d ", mat2[i * p + j]);
+  /*mat2[i][j]=rand()%100;
+  printf("%d",mat2[i][j]);*/
+        }
+        //printf("\n");
+    }
+    struct timespec start, end;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < p; j++) {
+            res[i * p + j] = 0;
+   //res[i][j]=0;
+            for (int k = 0; k < n; k++) {
+                res[i * p + j] += mat1[i * n + k] * mat2[k * p + j];
+//res[i][j]+=mat1[i][k]*mat2[k][j];
+            }
+        }
+    }
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    double stime = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
+    if (m<=5 && n<=5 && p<=10){
+        for (int i = 0; i < m; i++) {
+        for (int j = 0; j < n; j++) {
+            mat1[i * n + j] = rand() % 10;
+    /*mat1[i][j]=rand()%100;
+    printf("%d",mat1[i][j]);*/
+            printf("%d ", mat1[i * n + j]);
+        }
+        printf("\n");
+    }
+    printf("\nMatrix 2 (Randomly Generated):\n");
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < p; j++) {
+            mat2[i * p + j] = rand() % 10;                        
+            printf("%d ", mat2[i * p + j]);
+  /*mat2[i][j]=rand()%100;
+  printf("%d",mat2[i][j]);*/
+        }
+        printf("\n");
+    }
+    printf("\nResult Matrix for Serial:\n");
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < p; j++) {
+            printf("%d ", res[i * p + j]);
+       }
+        printf("\n");
+    }
+    }
+    printf("\nSerial Execution Time: %lf seconds\n", stime);
+    free(mat1);
+    free(mat2);
+    free(res);
+    return 0;
+}
+[23bcs114@mepcolinux EX-1]$./sr
+Enter number of rows of matrix 1 (m): 5
+Enter number of columns of matrix 1 / rows of matrix 2 (n): 5
+Enter number of columns of matrix 2 (p): 5
+
+Matrix 1 (Randomly Generated):
+
+Matrix 2 (Randomly Generated):
+3 6 1 0 6
+3 2 0 6 1
+5 5 4 7 6
+5 6 9 3 7
+4 5 2 5 4
+
+Matrix 2 (Randomly Generated):
+7 4 4 3 0
+7 8 6 8 8
+4 3 1 4 9
+2 0 6 8 9
+2 6 6 4 9
+
+Result Matrix for Serial:
+169 78 80 136 103
+156 63 52 171 119
+165 69 41 166 109
+102 84 80 96 50
+216 82 78 169 127
+
+Serial Execution Time: 0.000002 seconds
+[23bcs114@mepcolinux EX-1]$./sr
+Enter number of rows of matrix 1 (m): 50
+Enter number of columns of matrix 1 / rows of matrix 2 (n): 50
+Enter number of columns of matrix 2 (p): 50
+
+Matrix 1 (Randomly Generated):
+
+Matrix 2 (Randomly Generated):
+
+Serial Execution Time: 0.001800 seconds
+[23bcs114@mepcolinux EX-1]$./sr
+Enter number of rows of matrix 1 (m): 100
+Enter number of columns of matrix 1 / rows of matrix 2 (n): 100
+Enter number of columns of matrix 2 (p): 100
+
+Matrix 1 (Randomly Generated):
+
+Matrix 2 (Randomly Generated):
+
+Serial Execution Time: 0.014220 seconds
+[23bcs114@mepcolinux EX-1]$cat pr.c
+#define _XOPEN_SOURCE 700
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <sys/wait.h>
+#include <time.h>
+
+int main() {
+    int m, n, p;
+    printf("Enter number of rows of matrix 1 (m): ");
+    scanf("%d", &m);
+    printf("Enter number of columns of matrix 1 / rows of matrix 2 (n): ");
+    scanf("%d", &n);
+    printf("Enter number of columns of matrix 2 (p): ");
+    scanf("%d", &p);
+    int shmsize = (m*n + n*p + m*p) * sizeof(int);
+    int shmid = shmget(IPC_PRIVATE, shmsize, IPC_CREAT| IPC_EXCL | 0666);
+    int shm_time = m * sizeof(double);
+    int shmtid = shmget(IPC_PRIVATE, shm_time, IPC_CREAT | IPC_EXCL | 0666);
+    if (shmid < 0) {
+        perror("shmget");
+        exit(1);
+    }
+    int *shm = (int *)shmat(shmid, NULL, 0);
+    double *shmt = (double *)shmat(shmtid, NULL, 0);
+    if (shm == (void *)-1) {
+        perror("shmat");
+        exit(1);
+    }
+    int *mat1 = shm;
+    int *mat2 = shm + m*n;
+    int *res  = shm + m*n + n*p;
+    //printf("Enter elements of matrix 1:\n");
+    for (int i = 0; i < m; i++){
+        for (int j = 0; j < n; j++){
+            mat1[i*n + j]=rand()%10;
+}
+    }
+    //printf("Enter elements of matrix 2:\n");
+    for (int i = 0; i < n; i++){
+        for (int j = 0; j < p; j++){
+            mat2[i*p + j]=rand()%10;
+ 
+}
+    }
+    for (int i = 0; i < m; i++) {
+       pid_t pid = fork();
+       if (pid < 0) {
+           perror("fork");
+           exit(1);
+       }
+       if (pid == 0) {
+          struct timespec start, end;
+          clock_gettime(CLOCK_MONOTONIC, &start);
+          for (int j = 0; j < p; j++) {
+              res[i*p + j] = 0;
+              for (int k = 0; k < n; k++) {
+                  res[i*p + j] += mat1[i*n + k] * mat2[k*p + j];
+                }
+            }
+            clock_gettime(CLOCK_MONOTONIC, &end);
+  double ptime=(end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
+  shmt[i]=ptime;
+  //printf("\t[%d][%ld][%lf]",i, end.tv_nsec,ptime);
+  exit(0);
+        }
+    }
+    for (int i = 0; i < m; i++)
+        wait(NULL);
+    if(m<=10 && n<=10 && p<=10){
+        printf("Mat A:\n");
+        for (int i = 0; i < m; i++) {
+        for (int j = 0; j < p; j++) {
+            printf("%d ", mat1[i*p + j]);
+        }
+        printf("\n");
+        }
+printf("Mat B:\n");
+for (int i = 0; i < m; i++) {
+        for (int j = 0; j < p; j++) {
+            printf("%d ", mat2[i*p + j]);
+        }
+        printf("\n");
+    }
+    printf("\nResult Matrix for parallel:\n");
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < p; j++) {
+            printf("%d ", res[i*p + j]);
+        }
+        printf("\n");
+    }
+    }
+    double tmp=-1;
+    for(int i=0;i<m;i++){
+       if(tmp < shmt[i])
+          tmp=shmt[i];
+     }
+    printf("\nParallel Execution Time: %lf seconds\n", tmp);
+    shmdt(shm);
+    return 0;
+}
+[23bcs114@mepcolinux EX-1]$./pr
+Enter number of rows of matrix 1 (m): 5
+Enter number of columns of matrix 1 / rows of matrix 2 (n): 5
+Enter number of columns of matrix 2 (p): 5
+Mat A:
+3 6 7 5 3
+5 6 2 9 1
+2 7 0 9 3
+6 0 6 2 6
+1 8 7 9 2
+Mat B:
+0 2 3 7 5
+9 2 2 8 9
+7 3 6 1 2
+9 3 1 9 4
+7 8 4 5 0
+
+Result Matrix for parallel:
+169 78 80 136 103
+156 63 52 171 119
+165 69 41 166 109
+102 84 80 96 50
+216 82 78 169 127
+
+Parallel Execution Time: 0.000006 seconds
+[23bcs114@mepcolinux EX-1]$./pr
+Enter number of rows of matrix 1 (m): 10
+Enter number of columns of matrix 1 / rows of matrix 2 (n): 10
+Enter number of columns of matrix 2 (p): 10
+Mat A:
+3 6 7 5 3 5 6 2 9 1
+2 7 0 9 3 6 0 6 2 6
+1 8 7 9 2 0 2 3 7 5
+9 2 2 8 9 7 3 6 1 2
+9 3 1 9 4 7 8 4 5 0
+3 6 1 0 6 3 2 0 6 1
+5 5 4 7 6 5 6 9 3 7
+4 5 2 5 4 7 4 4 3 0
+7 8 6 8 8 4 3 1 4 9
+2 0 6 8 9 2 6 6 4 9
+Mat B:
+5 0 4 8 7 1 7 2 7 2
+2 6 1 0 6 1 5 9 4 9
+0 9 1 7 7 1 1 5 9 7
+7 6 7 3 6 5 6 3 9 4
+8 1 2 9 3 9 0 8 8 5
+0 9 6 3 8 5 6 1 1 5
+9 8 4 8 1 0 3 0 4 4
+4 4 7 6 3 1 7 5 9 6
+2 1 7 8 5 7 4 1 8 5
+9 7 5 3 8 8 3 1 8 9
+
+Result Matrix for parallel:
+175 249 202 265 250 166 189 159 304 259
+193 221 206 158 243 179 207 162 271 248
+189 237 189 207 250 171 178 179 330 275
+248 213 227 286 262 198 226 182 330 233
+244 233 248 291 255 168 247 141 312 224
+114 107 104 161 146 129 103 123 169 159
+291 295 263 305 297 214 250 204 392 322
+155 196 173 198 201 132 179 140 226 197
+291 289 230 295 341 254 226 226 400 339
+305 268 239 312 263 245 183 175 396 294
+
+Parallel Execution Time: 0.000007 seconds
+[23bcs114@mepcolinux EX-1]$./pr
+Enter number of rows of matrix 1 (m): 50
+Enter number of columns of matrix 1 / rows of matrix 2 (n): 50
+Enter number of columns of matrix 2 (p): 50
+
+Parallel Execution Time: 0.000076 seconds
