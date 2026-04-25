@@ -1,0 +1,165 @@
+[23bcs114@mepcolinux EX-9]$cat p1.c
+#include <stdio.h>
+#include <stdlib.h>
+#include <omp.h>
+
+double f(double x) {
+    return x * x;
+}
+
+int main() {
+    double a, b;
+    int n;
+    double h, integral;
+    printf("===== Trapizoidal Rule using Parallel For and Reduction clause =====\n");
+    printf("Enter lower limit (a): ");
+    scanf("%lf", &a);
+    printf("Enter upper limit (b): ");
+    scanf("%lf", &b);
+    printf("Enter number of trapezoids (n): ");
+    scanf("%d", &n);
+    h = (b - a) / n;
+    integral = (f(a) + f(b)) / 2.0;
+    double sum = 0.0;        
+    double critical_sum = 0.0;
+    #pragma omp parallel
+    {
+        double local_sum = 0.0;
+        #pragma omp for reduction(+:sum)
+        for (int i = 1; i < n; i++) {
+            double x = a + i * h;
+            sum += f(x);
+            local_sum += f(x);
+        }
+        #pragma omp critical
+        {
+            critical_sum += local_sum;
+        }
+    }
+    integral = h * (integral + sum);
+    printf("\nUsing reduction:");
+    printf("\nApproximate integral = %lf\n", integral);
+    return 0;
+}
+[23bcs114@mepcolinux EX-9]$./p1
+===== Trapizoidal Rule using Parallel For and Reduction clause =====
+Enter lower limit (a): 12
+Enter upper limit (b): 34
+Enter number of trapezoids (n): 4
+
+Using reduction:
+Approximate integral = 12636.250000
+[23bcs114@mepcolinux EX-9]$cat p2.c
+#include<stdio.h>
+#include<stdlib.h>
+#include<omp.h>
+#include<time.h>
+
+int main(){
+   int n,k;
+   printf("======== Sum of Elements divisible by K using Reduction Clause ========\n");
+   printf("Enter Rows & Columns:");
+   scanf("%d",&n);
+   int arr[n][n];
+   srand(time(NULL));
+   printf("Enter Elements:\n");
+   for(int i=0;i<n;i++){
+      for(int j=0;j<n;j++){
+//arr[i][j]=rand()%50;
+scanf("%d",&arr[i][j]);
+      }
+  }
+   printf("Enter Key:");
+   scanf("%d",&k);
+  int sum=0;
+  #pragma omp parallel for reduction(+:sum)  
+  for(int i=0;i<n;i++){
+     for(int j=0;j<n;j++){
+if(arr[i][j]%k==0)
+  sum+=arr[i][j];
+     }
+  }
+  printf("Sum of Elements divisible by %d is %d.\n",k,sum);
+}
+[23bcs114@mepcolinux EX-9]$./p2
+======== Sum of Elements divisible by K using Reduction Clause ========
+Enter Rows & Columns:4
+Enter Elements:
+3 1 3 2
+4 2 1 3
+2 3 4 1
+5 4 2 3
+Enter Key:2
+Sum of Elements divisible by 2 is 20.
+[23bcs114@mepcolinux EX-9]$cat p3.c
+#include <stdio.h>
+#include <omp.h>
+
+int main() {
+    int n;
+    int count = 0;
+    printf("===== Saddle Point of Matrix using Parallel For and Reduction Clause =====\n");
+    printf("Enter Row & Columns: ");
+    scanf("%d", &n);
+    int saddle_points[n * n];
+    int matrix[n][n];
+    printf("Enter Elements:\n");
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            scanf("%d", &matrix[i][j]);
+        }
+    }
+    #pragma omp parallel
+    {
+        int local_saddle_points[n * n];
+        int local_count = 0;
+        #pragma omp for nowait
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < n; j++) {
+                int elem = matrix[i][j];
+                int is_row_min = 1;
+                int is_col_max = 1;
+                for (int k = 0; k < n; k++) {
+                    if (matrix[i][k] < elem) {
+                        is_row_min = 0;
+                        break;
+                    }
+                }
+                for (int k = 0; k < n; k++) {
+                    if (matrix[k][j] > elem) {
+                        is_col_max = 0;
+                        break;
+                    }
+                }
+                if (is_row_min && is_col_max) {  
+                    local_saddle_points[local_count++] = elem;
+                }
+            }
+        }
+        #pragma omp critical
+        {
+            for (int i = 0; i < local_count; i++) {
+                saddle_points[count++] = local_saddle_points[i];
+            }
+        }
+    }
+    if (count == 0) {
+        printf("No saddle points found.\n");
+    }
+    else {
+        printf("Saddle points in the matrix: ");
+        for (int i = 0; i < count; i++) {
+            printf("%d ", saddle_points[i]);
+        }
+        printf("\n");
+    }
+    return 0;
+}
+[23bcs114@mepcolinux EX-9]$./p3
+===== Saddle Point of Matrix using Parallel For and Reduction Clause =====
+Enter Row & Columns: 3
+Enter Elements:
+1 2 3
+4 5 6
+7 8 9
+Saddle points in the matrix: 7
